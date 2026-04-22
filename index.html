@@ -2,68 +2,286 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Consulta de Produtos Liberados</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Equipamentos</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; color: #333; }
-        #busca { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        :root {
+            --primary: #1a73e8;
+            --bg: #f0f2f5;
+            --card-bg: #ffffff;
+            --text: #333333;
+            --border: #dadce0;
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: var(--bg); 
+            margin: 0; 
+            padding: 20px; 
+            color: var(--text);
+        }
+
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+        }
+
+        .header-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        h2 { margin-top: 0; font-size: 24px; color: var(--primary); }
+
+        .search-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap; /* Ajusta para celular */
+        }
+
+        input {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus { border-color: var(--primary); }
+
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        button.outline {
+            background-color: transparent;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+
+        #status { font-size: 12px; color: #666; }
+
+        /* Estilos da Tabela */
+        .table-card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+
         table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { background-color: #f4f4f4; }
-        tr:nth-child(even) { background-color: #fafafa; }
-        tr:hover { background-color: #f1f1f1; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background-color: #f8f9fa; font-weight: 600; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background-color: #f1f3f4; }
+
+        /* Botão de Favorito (Estrela) */
+        .fav-btn {
+            cursor: pointer;
+            font-size: 20px;
+            color: #ccc;
+            background: none;
+            border: none;
+            padding: 0;
+            outline: none;
+        }
+        .fav-btn.active { color: #fbbc04; }
+
     </style>
 </head>
 <body>
 
-    <h2>Consulta de Itens</h2>
-    <input type="text" id="busca" placeholder="Digite o código ou descrição para filtrar...">
+    <div class="container">
+        <div class="header-card">
+            <h2>Busca de Equipamentos</h2>
+            
+            <div class="search-group">
+                <input type="text" id="busca-id" placeholder="Nº do Item (ex: 00000111)">
+                <input type="text" id="busca-desc" placeholder="Descrição (ex: serra circular 7 1/4)">
+            </div>
 
-    <table id="tabela-produtos">
-        <thead>
-            <tr>
-                <th>Número do Item</th>
-                <th>Descrição</th>
-            </tr>
-        </thead>
-        <tbody>
-            </tbody>
-    </table>
+            <div class="actions">
+                <button id="btn-favoritos" class="outline">⭐ Ver Meus Favoritos</button>
+                <span id="status">Carregando base de dados...</span>
+            </div>
+        </div>
+
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">Fav</th>
+                        <th style="width: 150px;">Número do Item</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-corpo">
+                    </tbody>
+            </table>
+        </div>
+    </div>
 
     <script>
-        // COLE O LINK DO CSV AQUI
+        // === COLE SUA URL DO CSV AQUI ===
         const URL_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRm0PEdjFhRuyrfj38Y-gAAWPL-GADEWoWyjUJENLbwIQaWKXNxKDjFgfiXRNas3YqGZGABIArFPmnH/pub?gid=0&single=true&output=csv';
 
-        async function carregarDados() {
-            const resposta = await fetch(URL_CSV);
-            const dadosText = await resposta.text();
-            
-            // Converte CSV em Array (ignora a primeira linha de cabeçalho)
-            const linhas = dadosText.split('\n').slice(1);
-            const corpoTabela = document.querySelector('#tabela-produtos tbody');
+        // Variáveis globais
+        let dadosCompletos = [];
+        let favoritos = JSON.parse(localStorage.getItem('favoritosSGI')) || [];
+        let exibindoFavoritos = false;
 
-            linhas.forEach(linha => {
-                const colunas = linha.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // Regex para tratar vírgulas dentro de aspas
-                if (colunas.length >= 2) {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${colunas[0].replace(/"/g, '')}</td>
-                                    <td>${colunas[1].replace(/"/g, '')}</td>`;
-                    corpoTabela.appendChild(tr);
-                }
+        // 1. Função para ignorar acentos e maiúsculas
+        function normalizarTexto(texto) {
+            if (!texto) return '';
+            return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        }
+
+        // 2. Carregar dados em "Segundo Plano" (Memória)
+        async function inicializar() {
+            try {
+                const resposta = await fetch(URL_CSV);
+                const dadosText = await resposta.text();
+                
+                const linhas = dadosText.split('\n').slice(1); // Pula cabeçalho
+                
+                linhas.forEach(linha => {
+                    const colunas = linha.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    if (colunas.length >= 2) {
+                        dadosCompletos.push({
+                            id: colunas[0].replace(/"/g, '').trim(),
+                            desc: colunas[1].replace(/"/g, '').trim()
+                        });
+                    }
+                });
+
+                document.getElementById('status').innerText = `${dadosCompletos.length} itens prontos.`;
+                renderizarTabela([]); // Começa com a tabela vazia
+            } catch (erro) {
+                document.getElementById('status').innerText = "Erro ao carregar dados.";
+            }
+        }
+
+        // 3. Lógica de Pesquisa "Sem Frescura"
+        function pesquisar() {
+            if (exibindoFavoritos) return; // Se estiver vendo favoritos, não pesquisa na base toda
+
+            const termoId = normalizarTexto(document.getElementById('busca-id').value);
+            const termoDesc = normalizarTexto(document.getElementById('busca-desc').value);
+            
+            // Se os dois campos estiverem vazios, limpa a tabela (para não travar o celular)
+            if (termoId === '' && termoDesc === '') {
+                renderizarTabela([]);
+                return;
+            }
+
+            // Separa a descrição em palavras soltas (ex: ["serra", "7", "circular"])
+            const palavrasBusca = termoDesc.split(' ').filter(p => p.length > 0);
+
+            const resultados = dadosCompletos.filter(item => {
+                const idItemNorm = normalizarTexto(item.id);
+                const descItemNorm = normalizarTexto(item.desc);
+
+                // Verifica o ID
+                const bateuId = termoId === '' || idItemNorm.includes(termoId);
+
+                // Verifica a Descrição (TODAS as palavras digitadas precisam estar na descrição, independente da ordem)
+                const bateuDesc = palavrasBusca.length === 0 || palavrasBusca.every(palavra => descItemNorm.includes(palavra));
+
+                return bateuId && bateuDesc;
+            });
+
+            // Limita a exibição a 50 itens para não sobrecarregar o navegador do celular
+            renderizarTabela(resultados.slice(0, 50));
+        }
+
+        // 4. Desenhar a tabela
+        function renderizarTabela(dados) {
+            const corpo = document.getElementById('tabela-corpo');
+            corpo.innerHTML = '';
+
+            if (dados.length === 0 && (document.getElementById('busca-id').value !== '' || document.getElementById('busca-desc').value !== '')) {
+                corpo.innerHTML = '<tr><td colspan="3" style="text-align:center;">Nenhum item encontrado.</td></tr>';
+                return;
+            }
+
+            dados.forEach(item => {
+                const isFav = favoritos.includes(item.id) ? 'active' : '';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="text-align: center;">
+                        <button class="fav-btn ${isFav}" onclick="alternarFavorito('${item.id}')">★</button>
+                    </td>
+                    <td><strong>${item.id}</strong></td>
+                    <td>${item.desc}</td>
+                `;
+                corpo.appendChild(tr);
             });
         }
 
-        // Lógica de Filtro
-        document.getElementById('busca').addEventListener('keyup', function() {
-            const termo = this.value.toLowerCase();
-            const linhas = document.querySelectorAll('#tabela-produtos tbody tr');
+        // 5. Sistema de Favoritos
+        function alternarFavorito(idItem) {
+            if (favoritos.includes(idItem)) {
+                favoritos = favoritos.filter(id => id !== idItem); // Remove
+            } else {
+                favoritos.push(idItem); // Adiciona
+            }
+            
+            // Salva no armazenamento do celular/navegador
+            localStorage.setItem('favoritosSGI', JSON.stringify(favoritos));
+            
+            // Atualiza a tela
+            if (exibindoFavoritos) {
+                mostrarFavoritos();
+            } else {
+                pesquisar();
+            }
+        }
 
-            linhas.forEach(linha => {
-                const texto = linha.innerText.toLowerCase();
-                linha.style.display = texto.includes(termo) ? '' : 'none';
-            });
-        });
+        function mostrarFavoritos() {
+            exibindoFavoritos = !exibindoFavoritos;
+            const btn = document.getElementById('btn-favoritos');
+            
+            if (exibindoFavoritos) {
+                btn.innerText = "🔍 Voltar para Busca";
+                btn.classList.remove('outline');
+                
+                // Filtra a base completa apenas pelos IDs que estão nos favoritos
+                const dadosFavoritos = dadosCompletos.filter(item => favoritos.includes(item.id));
+                renderizarTabela(dadosFavoritos);
+            } else {
+                btn.innerText = "⭐ Ver Meus Favoritos";
+                btn.classList.add('outline');
+                pesquisar(); // Volta a mostrar os resultados da pesquisa atual
+            }
+        }
 
-        carregarDados();
+        // Eventos
+        document.getElementById('busca-id').addEventListener('input', pesquisar);
+        document.getElementById('busca-desc').addEventListener('input', pesquisar);
+        document.getElementById('btn-favoritos').addEventListener('click', mostrarFavoritos);
+
+        // Dá o play
+        inicializar();
     </script>
 </body>
 </html>
