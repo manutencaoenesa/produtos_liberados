@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Consulta de Produtos Liberados</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; color: #333; }
+        #busca { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f4f4f4; }
+        tr:nth-child(even) { background-color: #fafafa; }
+        tr:hover { background-color: #f1f1f1; }
+    </style>
+</head>
+<body>
+
+    <h2>Consulta de Itens</h2>
+    <input type="text" id="busca" placeholder="Digite o código ou descrição para filtrar...">
+
+    <table id="tabela-produtos">
+        <thead>
+            <tr>
+                <th>Número do Item</th>
+                <th>Descrição</th>
+            </tr>
+        </thead>
+        <tbody>
+            </tbody>
+    </table>
+
+    <script>
+        // COLE O LINK DO CSV AQUI
+        const URL_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRm0PEdjFhRuyrfj38Y-gAAWPL-GADEWoWyjUJENLbwIQaWKXNxKDjFgfiXRNas3YqGZGABIArFPmnH/pub?gid=0&single=true&output=csv';
+
+        async function carregarDados() {
+            const resposta = await fetch(URL_CSV);
+            const dadosText = await resposta.text();
+            
+            // Converte CSV em Array (ignora a primeira linha de cabeçalho)
+            const linhas = dadosText.split('\n').slice(1);
+            const corpoTabela = document.querySelector('#tabela-produtos tbody');
+
+            linhas.forEach(linha => {
+                const colunas = linha.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); // Regex para tratar vírgulas dentro de aspas
+                if (colunas.length >= 2) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${colunas[0].replace(/"/g, '')}</td>
+                                    <td>${colunas[1].replace(/"/g, '')}</td>`;
+                    corpoTabela.appendChild(tr);
+                }
+            });
+        }
+
+        // Lógica de Filtro
+        document.getElementById('busca').addEventListener('keyup', function() {
+            const termo = this.value.toLowerCase();
+            const linhas = document.querySelectorAll('#tabela-produtos tbody tr');
+
+            linhas.forEach(linha => {
+                const texto = linha.innerText.toLowerCase();
+                linha.style.display = texto.includes(termo) ? '' : 'none';
+            });
+        });
+
+        carregarDados();
+    </script>
+</body>
+</html>
